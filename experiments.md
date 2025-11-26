@@ -57,11 +57,50 @@ self.img_path = [p for p in glob(f"{data_path}/train_data/*.png")
 
 ---
 
+### 실험 #2: Mixup 설정 오류 디버깅
+**날짜**: 2025-11-26
+
+#### 목표
+- CUDA device-side assert 오류 원인 파악
+- Mixup 적용 시 발생하는 문제 해결
+
+#### 설정
+- **GPU**: NVIDIA GeForce GTX 1050
+- **CUDA_LAUNCH_BLOCKING**: 1 (디버깅 모드)
+- **데이터셋**: CIFAR-10 (10 classes)
+- **모델 출력**: 10 classes
+
+#### 발견한 문제점 🐛
+1. **CUDA Error 발생**
+   - **에러**: `CUDA error: device-side assert triggered`
+   - 데이터 로딩 및 모델 구조는 정상 확인:
+     - Labels: 0~9 (10개 클래스) ✅
+     - Model output: 10 classes ✅
+   
+2. **추정 원인**
+   - **Mixup 설정이 잘못된 것으로 추정**
+   - Mixup 적용 후 레이블 처리 방식 문제 가능성
+   - CrossEntropyLoss와 mixup된 레이블 간 호환성 문제 의심
+
+#### 현재 상태
+- 🔍 디버깅 진행 중
+- 데이터 및 모델 검증 완료
+- Mixup 코드 부분 점검 필요
+
+#### 다음 단계 📌
+- [ ] Mixup 적용 코드 검토
+- [ ] 손실 함수 계산 부분 확인
+- [ ] Mixup 후 레이블 형식 검증 (float vs int)
+- [ ] One-hot encoding 필요 여부 확인
+
+---
+
 ## 📊 실험 결과 요약
 
 | 실험 # | 날짜 | 주요 변경사항 | 결과 | 비고 |
 |--------|------|---------------|------|------|
-| 1 | 2025-11-26 | 초기 설정 및 문제 발견 | 진행 중 | 데이터 정합성 문제 해결 필요 |
+| 1 | 2025-11-26 | 초기 설정 및 문제 발견 | 완료 | 데이터 정합성 문제 해결 |
+| 2 | 2025-11-26 | Mixup 설정 오류 디버깅 | 진행 중 | Mixup 설정 문제 추정 |
 
 ---
 
