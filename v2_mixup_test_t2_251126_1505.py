@@ -106,7 +106,7 @@ scaler = GradScaler()
 criterion = nn.BCEWithLogitsLoss()
 optimizer = torch.optim.AdamW(model.parameters(), lr=0.01, weight_decay=0.0001)
 scheduler = CosineAnnealingLR(optimizer, T_max=10, eta_min=0.001)
-mixup = v2.MixUp(alpha=1.0, num_classes=10)
+mixup = v2.MixUp(alpha=3.0, num_classes=10)
 
 # Mixup 스냅샷 저장 함수
 def save_mixup_snapshot(orig_x, orig_y, mixed_x, mixed_y, mean, std, num_samples=5):

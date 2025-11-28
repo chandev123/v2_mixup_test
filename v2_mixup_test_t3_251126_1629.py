@@ -103,42 +103,14 @@ model = model.to(device)
 
 scaler = GradScaler()
 # criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
-criterion = nn.BCEWithLogitsLoss()
+# Mixup 전용 손실함수 (Soft Target Cross Entropy)
+def mixup_criterion(pred, target):
+    return torch.mean(-torch.sum(target * torch.nn.functional.log_softmax(pred, dim=1), dim=1))
+
+criterion = mixup_criterion
 optimizer = torch.optim.AdamW(model.parameters(), lr=0.01, weight_decay=0.0001)
 scheduler = CosineAnnealingLR(optimizer, T_max=10, eta_min=0.001)
 mixup = v2.MixUp(alpha=1.0, num_classes=10)
-
-# Mixup 스냅샷 저장 함수
-def save_mixup_snapshot(orig_x, orig_y, mixed_x, mixed_y, mean, std, num_samples=5):
-    inv_mean = [-m/s for m, s in zip(mean, std)]
-    inv_std = [1/s for s in std]
-    inv_normalize = v2.Normalize(mean=inv_mean, std=inv_std)
-    
-    orig_x = inv_normalize(orig_x).cpu()
-    mixed_x = inv_normalize(mixed_x).cpu()
-    
-    plt.figure(figsize=(15, 8))
-    for i in range(min(num_samples, orig_x.size(0))):
-        # 원본
-        plt.subplot(2, num_samples, i + 1)
-        plt.imshow(orig_x[i].permute(1, 2, 0).clamp(0, 1))
-        plt.axis('off')
-        plt.title(f"Original\nLabel: {orig_y[i].item()}")
-        
-        # Mixup
-        plt.subplot(2, num_samples, num_samples + i + 1)
-        plt.imshow(mixed_x[i].permute(1, 2, 0).clamp(0, 1))
-        plt.axis('off')
-        
-        probs, indices = torch.topk(mixed_y[i], k=2)
-        label_str = f"Mixup\nCls {indices[0].item()}: {probs[0].item():.2f}\nCls {indices[1].item()}: {probs[1].item():.2f}"
-        plt.title(label_str, fontsize=9)
-        
-    plt.tight_layout()
-    save_path = get_unique_filename('mixup_training_snapshot.png')
-    plt.savefig(save_path)
-    plt.close()
-    print(f"훈련 중 Mixup 스냅샷 저장 완료: {save_path}")
 
 # train 함수
 def train_one_epoch(model, loader, epoch):
@@ -149,16 +121,8 @@ def train_one_epoch(model, loader, epoch):
     for i, (x, y) in enumerate(pbar):
         x, y = x.to(device), y.to(device)
         
-        # 첫 에폭의 첫 배치에서만 스냅샷 저장
-        if epoch == 1 and i == 0:
-            x_orig = x.clone()
-            y_orig = y.clone()
-            
         x, y = mixup(x, y)
         
-        if epoch == 1 and i == 0:
-            save_mixup_snapshot(x_orig, y_orig, x, y, mean, std)
-
         optimizer.zero_grad()              
 
         out = model(x)         
@@ -247,60 +211,3 @@ plt.tight_layout()
 save_path = get_unique_filename('model_acc.png')
 plt.savefig(save_path)
 plt.show()
-
-# ---------------------------------------------------------
-# Mixup 이미지 시각화 (수정됨)
-# ---------------------------------------------------------
-def visualize_mixup_samples(loader, mixup_fn, mean, std, num_samples=5):
-    print("Mixup 이미지 시각화 생성 중...")
-    
-    # 1. 데이터 배치 가져오기
-    x, y = next(iter(loader))
-    x, y = x.to(device), y.to(device)
-    
-    # 원본 복사 (시각화용)
-    orig_x = x.clone()
-    orig_y = y.clone()
-    
-    # 2. Mixup 적용
-    mixed_x, mixed_y = mixup_fn(x, y)
-    
-    # 3. 역정규화 (Un-normalize) 설정
-    inv_mean = [-m/s for m, s in zip(mean, std)]
-    inv_std = [1/s for s in std]
-    inv_normalize = v2.Normalize(mean=inv_mean, std=inv_std)
-    
-    # 4. 시각화 데이터 준비
-    orig_x = inv_normalize(orig_x).cpu()
-    mixed_x = inv_normalize(mixed_x).cpu()
-    
-    plt.figure(figsize=(15, 8))
-    
-    for i in range(min(num_samples, x.size(0))):
-        # --- 원본 이미지 ---
-        img_orig = orig_x[i].permute(1, 2, 0).clamp(0, 1)
-        plt.subplot(2, num_samples, i + 1)
-        plt.imshow(img_orig)
-        plt.axis('off')
-        plt.title(f"Original\nLabel: {orig_y[i].item()}")
-        
-        # --- Mixup 이미지 ---
-        img_mix = mixed_x[i].permute(1, 2, 0).clamp(0, 1)
-        plt.subplot(2, num_samples, num_samples + i + 1)
-        plt.imshow(img_mix)
-        plt.axis('off')
-        
-        # Mixup 라벨 확인 (Top 2 클래스 및 비율 표시)
-        # mixed_y[i]는 one-hot vector (soft label) 상태임
-        probs, indices = torch.topk(mixed_y[i], k=2)
-        label_str = f"Mixup\nCls {indices[0].item()}: {probs[0].item():.2f}\nCls {indices[1].item()}: {probs[1].item():.2f}"
-        plt.title(label_str, fontsize=9)
-        
-    plt.tight_layout()
-    save_path = get_unique_filename('mixup_samples_comparison.png')
-    plt.savefig(save_path)
-    plt.show()
-    print(f"Mixup 비교 이미지 저장 완료: {save_path}")
-
-# 실행
-visualize_mixup_samples(train_loader, mixup, mean, std)
